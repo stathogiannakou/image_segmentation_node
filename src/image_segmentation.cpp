@@ -7,6 +7,11 @@
 #include <fstream>
 #include <algorithm>
 
+
+
+#include <deque>
+
+
 #include <image_transport/image_transport.h>
 #include <opencv2/highgui/highgui.hpp>
 #include <cv_bridge/cv_bridge.h>
@@ -35,6 +40,13 @@ ros::Publisher pcl_pub;
 sensor_msgs::Image latest_frame;
 int first_frame = 0;
 
+
+
+std::deque<sensor_msgs::Image> buffer;
+
+
+
+
 void Log (uint32_t duration_nsecs, std::string message){	// logs a message to LOGFILE
 
 	std::ofstream ofs;
@@ -44,20 +56,23 @@ void Log (uint32_t duration_nsecs, std::string message){	// logs a message to LO
 }
 
 
-void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg){
+void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg) {
 
 	if(first_frame == 0){
 		return;
 	}
 
+  
+
 	image_msgs::Image_Segments out_msg;
+
+	
 
 	double angle_min = msg.angle_min;
 	double angle_max = msg.angle_max;
 	double angle_increment = msg.angle_increment;
 
-	cv_bridge::CvImagePtr cv_ptr;
-	cv_ptr = cv_bridge::toCvCopy(latest_frame, "bgr8");
+	
 	
 	ros::WallDuration dur;
 	ros::WallDuration z_dur;
@@ -66,6 +81,53 @@ void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg){
 
 	//Timestamp: "Start" (Just got the pcl_segments message)
 	ros::WallTime start = ros::WallTime::now();
+
+
+ 
+  
+
+    int pos = 0;
+
+    int bufsize = buffer.size();
+
+     if(bufsize>12) bufsize = bufsize - 10;
+
+
+
+    for(unsigned b=bufsize-1; b>0 ; b--){
+
+
+    	if(msg.first_stamp - buffer.at(b).header.stamp >= ros::Duration (0.0) ) {
+
+
+    		pos = b;
+
+            break;
+     
+        }   
+    }
+
+
+
+
+
+    latest_frame = buffer.at(pos);
+
+
+    buffer.erase(buffer.begin(), buffer.begin() + pos);
+
+
+
+
+
+
+
+    cv_bridge::CvImagePtr cv_ptr;
+	cv_ptr = cv_bridge::toCvCopy(latest_frame, "bgr8");
+
+
+    
+
 
 	pcl::PointCloud<pcl::PointXYZ> pcz; 			//pcz contains all points with max z
 
@@ -240,12 +302,18 @@ void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg){
 
 }
 
-
 void videoCallback(const sensor_msgs::ImageConstPtr& msg){
 
 	std_msgs::Header h = msg->header;
 	sensor_msgs::Image new_msg;
-	latest_frame = *msg;
+
+	new_msg = *msg;
+
+
+    
+    buffer.push_back(new_msg);
+
+
 	first_frame = 1;
 
 	try{
@@ -284,6 +352,10 @@ int main(int argc, char **argv){
 	pcl_pub = nh.advertise<sensor_msgs::PointCloud2> ("test_pcl", 1);
 
 	ros::Subscriber pcl_seg_sub = nh.subscribe<const pointcloud_msgs::PointCloud2_Segments&>("pointcloud2_cluster_tracking/clusters", 1, pcl_seg_Callback);
+
+   
+
+
 	image_transport::Subscriber video_sub = it.subscribe("rear_cam/image_raw", 50, videoCallback);		//  camera/rgb/image_raw gia to rosbag me tous 3, rear_cam/image_raw gia to rosbag me emena, usb_cam/image_raw gia to rosbag me to video mono
 
 	ros::spin();
