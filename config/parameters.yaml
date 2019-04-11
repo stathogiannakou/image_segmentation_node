@@ -1,0 +1,8 @@
+topic1: "pointcloud2_cluster_tracking/clusters"
+out_topic1: "seg_images"
+topic2: "rear_cam/image_raw"
+out_topic2: "image_segmentation_node/seg_image"
+out_topic3: "test_pcl"
+
+safety_pixels: 20 #additional pixels both at left and right edges
+maxBufferSize: 120
