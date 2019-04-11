@@ -33,7 +33,7 @@
 using namespace std;
 ros::Publisher pub;
 image_transport::Publisher tpub;
-int safety_pixels;
+int safety_pixels, maxBufferSize;
 
 ros::Publisher pcl_pub;
 
@@ -84,18 +84,17 @@ void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg) {
 
 
  
-  
+
 
     int pos = 0;
 
     int bufsize = buffer.size();
 
-     if(bufsize>12) bufsize = bufsize - 10;
+   //  if(bufsize>12) bufsize = bufsize - 10;
 
 
 
-    for(unsigned b=bufsize-1; b>0 ; b--){
-
+   for(unsigned b=bufsize-1; b>0 ; b--){
 
     	if(msg.first_stamp - buffer.at(b).header.stamp >= ros::Duration (0.0) ) {
 
@@ -309,9 +308,11 @@ void videoCallback(const sensor_msgs::ImageConstPtr& msg){
 
 	new_msg = *msg;
 
-
+    
     
     buffer.push_back(new_msg);
+
+    if(buffer.size()>maxBufferSize) buffer.erase(buffer.begin(), buffer.begin() + buffer.size()-maxBufferSize);
 
 
 	first_frame = 1;
@@ -341,22 +342,49 @@ int main(int argc, char **argv){
 	ros::init(argc, argv, "image_segmentation_node");
 	ros::NodeHandle nh;
 
-	nh.param<int>("safety_pixels", safety_pixels, 20);
-	cout << "safety_pixels= " << safety_pixels << endl;
+	
+
+     nh.param("image_segmentation_node/safety_pixels", safety_pixels, 19);
+    nh.param("image_segmentation_node/maxBufferSize", maxBufferSize, 119);
+
+    std::string topic1;
+    std::string out_topic1;
+    std::string topic2;
+    std::string out_topic2;
+    std::string out_topic3;
+
+
+    nh.param("image_segmentation_node/topic1", topic1, std::string("pointcloud2_cluster_tracking/clusters"));
+
+    nh.param("image_segmentation_node/out_topic1", out_topic1, std::string("seg_images"));
+
+    nh.param("image_segmentation_node/topic2", topic2, std::string("rear_cam/image_raw"));
+
+    nh.param("image_segmentation_node/out_topic2", out_topic2, std::string("image_segmentation_node/seg_image"));
+
+    nh.param("image_segmentation_node/out_topic3", out_topic3, std::string("test_pcl"));
+
+
+
+    cout << "safety_pixels= " << safety_pixels << endl;
+    cout << "maxBufferSize= " << maxBufferSize << endl;
+    
+   
 
 	image_transport::ImageTransport it(nh);
 
-	pub = nh.advertise<image_msgs::Image_Segments>("seg_images", 2);
-	tpub = it.advertise("image_segmentation_node/seg_image", 1);
+	pub = nh.advertise<image_msgs::Image_Segments>(out_topic1, 2);
+	
+	tpub = it.advertise(out_topic2, 1);
 
-	pcl_pub = nh.advertise<sensor_msgs::PointCloud2> ("test_pcl", 1);
+	pcl_pub = nh.advertise<sensor_msgs::PointCloud2> (out_topic3, 1);
 
-	ros::Subscriber pcl_seg_sub = nh.subscribe<const pointcloud_msgs::PointCloud2_Segments&>("pointcloud2_cluster_tracking/clusters", 1, pcl_seg_Callback);
+	ros::Subscriber pcl_seg_sub = nh.subscribe<const pointcloud_msgs::PointCloud2_Segments&>(topic1, 1, pcl_seg_Callback);
 
    
 
 
-	image_transport::Subscriber video_sub = it.subscribe("rear_cam/image_raw", 50, videoCallback);		//  camera/rgb/image_raw gia to rosbag me tous 3, rear_cam/image_raw gia to rosbag me emena, usb_cam/image_raw gia to rosbag me to video mono
+	image_transport::Subscriber video_sub = it.subscribe(topic2, 50, videoCallback);		//  camera/rgb/image_raw gia to rosbag me tous 3, rear_cam/image_raw gia to rosbag me emena, usb_cam/image_raw gia to rosbag me to video mono
 
 	ros::spin();
 }
