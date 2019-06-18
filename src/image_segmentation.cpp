@@ -29,19 +29,17 @@
 using namespace std;
 ros::Publisher pub;
 image_transport::Publisher tpub;
-int safety_pixels, maxBufferSize, MY_CLUSTER, cutPixelsFromTop, saveTotalPixels;
+int safety_pixels, maxBufferSize, MY_CLUSTER, cutPixelsFromTop, saveTotalPixels, clusterToChoose;
 
 ros::Publisher pcl_pub;
 
 sensor_msgs::Image latest_frame;
 int first_frame = 0;
+bool motioncluster = false;
 double rad_deviation_Camera_Laser, base;
 
 
-
 std::deque<sensor_msgs::Image> buffer;
-
-
 
 
 void Log (uint32_t duration_nsecs, std::string message){  // logs a message to LOGFILE
@@ -61,15 +59,13 @@ void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg) {
 
 
   image_msgs::Image_Segments out_msg;
-
-  
+ 
 
   double angle_min = msg.angle_min;
   double angle_max = msg.angle_max;
   double angle_increment = msg.angle_increment;
 
-  
-  
+   
   ros::WallDuration dur;
   ros::WallDuration z_dur;
   uint32_t nsecs = 0;
@@ -93,10 +89,13 @@ void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg) {
 
 
   latest_frame = buffer.at(pos);
-
-
   buffer.erase(buffer.begin(), buffer.begin() + pos);
 
+
+  if(clusterToChoose==2 && motioncluster==false && msg.idForTracking!=-1){
+    motioncluster=true;
+    MY_CLUSTER=msg.idForTracking;
+  }
 
 
   cv_bridge::CvImagePtr cv_ptr;
@@ -158,9 +157,6 @@ void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg) {
         max_z = pc.points[i].z;
       }
     }
-
-    // std::cout << "cluster_id = " << msg.cluster_id[j] << "max_z = " << max_z << std::endl;
-
 
     for(int i=0; i < pc.points.size(); i++){    //add points with max z to a new pointcloud
       if(pc.points[i].z == max_z){
@@ -317,12 +313,10 @@ void videoCallback(const sensor_msgs::ImageConstPtr& msg){
   sensor_msgs::Image new_msg;
 
   new_msg = *msg;
+  
+  buffer.push_back(new_msg);
 
-    
-    
-    buffer.push_back(new_msg);
-
-    if(buffer.size()>maxBufferSize) buffer.erase(buffer.begin(), buffer.begin() + buffer.size()-maxBufferSize);
+  if(buffer.size()>maxBufferSize) buffer.erase(buffer.begin(), buffer.begin() + buffer.size()-maxBufferSize);
 
 
   first_frame = 1;
@@ -353,40 +347,38 @@ int main(int argc, char **argv){
   ros::NodeHandle nh;
 
   
+  nh.param("image_segmentation_node/safety_pixels", safety_pixels, 19);
+  nh.param("image_segmentation_node/maxBufferSize", maxBufferSize, 119);
+  nh.param("image_segmentation_node/MY_CLUSTER", MY_CLUSTER, 3);
+  nh.param("image_segmentation_node/cutPixelsFromTop", cutPixelsFromTop, 150);
+  nh.param("image_segmentation_node/saveTotalPixels", saveTotalPixels, 60);
+  nh.param("image_segmentation_node/rad_deviation_Camera_Laser", rad_deviation_Camera_Laser, 0.0);
+  nh.param("image_segmentation_node/base", base, 2.0);
+  nh.param("image_segmentation_node/clusterToChoose", clusterToChoose, 1);
 
-     nh.param("image_segmentation_node/safety_pixels", safety_pixels, 19);
-    nh.param("image_segmentation_node/maxBufferSize", maxBufferSize, 119);
-    nh.param("image_segmentation_node/MY_CLUSTER", MY_CLUSTER, 3);
-    nh.param("image_segmentation_node/cutPixelsFromTop", cutPixelsFromTop, 150);
-    nh.param("image_segmentation_node/saveTotalPixels", saveTotalPixels, 60);
-    nh.param("image_segmentation_node/rad_deviation_Camera_Laser", rad_deviation_Camera_Laser, 0.0);
-    nh.param("image_segmentation_node/base", base, 2.0);
-
-    std::string input_topic_clusters;
-    std::string out_topic_seg_images;
-    std::string input_topic_camera;
-    std::string out_topic_my_cluster_image;
-    std::string out_topic_clusters;
-
-
-    nh.param("image_segmentation_node/input_topic_clusters", input_topic_clusters, std::string("pointcloud2_cluster_tracking/clusters"));
-
-    nh.param("image_segmentation_node/out_topic_seg_images", out_topic_seg_images, std::string("seg_images"));
-
-    nh.param("image_segmentation_node/input_topic_camera", input_topic_camera, std::string("rear_cam/image_raw"));
-
-    nh.param("image_segmentation_node/out_topic_my_cluster_image", out_topic_my_cluster_image, std::string("image_segmentation_node/seg_image"));
-
-    nh.param("image_segmentation_node/out_topic_clusters", out_topic_clusters, std::string("test_pcl"));
+  std::string input_topic_clusters;
+  std::string out_topic_seg_images;
+  std::string input_topic_camera;
+  std::string out_topic_my_cluster_image;
+  std::string out_topic_clusters;
 
 
+  nh.param("image_segmentation_node/input_topic_clusters", input_topic_clusters, std::string("pointcloud2_cluster_tracking/clusters"));
 
-    cout << "safety_pixels= " << safety_pixels << endl;
-    cout << "maxBufferSize= " << maxBufferSize << endl;
-    cout << "MY_CLUSTER= " << MY_CLUSTER << endl;
-    cout << "base= " << base << endl;
-    
-   
+  nh.param("image_segmentation_node/out_topic_seg_images", out_topic_seg_images, std::string("seg_images"));
+
+  nh.param("image_segmentation_node/input_topic_camera", input_topic_camera, std::string("rear_cam/image_raw"));
+
+  nh.param("image_segmentation_node/out_topic_my_cluster_image", out_topic_my_cluster_image, std::string("image_segmentation_node/seg_image"));
+
+  nh.param("image_segmentation_node/out_topic_clusters", out_topic_clusters, std::string("test_pcl"));
+
+
+  cout << "safety_pixels= " << safety_pixels << endl;
+  cout << "maxBufferSize= " << maxBufferSize << endl;
+  cout << "MY_CLUSTER= " << MY_CLUSTER << endl;
+  cout << "base= " << base << endl;
+
 
   image_transport::ImageTransport it(nh);
 
@@ -397,9 +389,6 @@ int main(int argc, char **argv){
   pcl_pub = nh.advertise<sensor_msgs::PointCloud2> (out_topic_clusters, 1);
 
   ros::Subscriber pcl_seg_sub = nh.subscribe<const pointcloud_msgs::PointCloud2_Segments&>(input_topic_clusters, 1, pcl_seg_Callback);
-
-   
-
 
   image_transport::Subscriber video_sub = it.subscribe(input_topic_camera, 50, videoCallback);    //  camera/rgb/image_raw gia to rosbag me tous 3, rear_cam/image_raw gia to rosbag me emena, usb_cam/image_raw gia to rosbag me to video mono
 

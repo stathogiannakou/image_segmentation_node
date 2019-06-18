@@ -7,11 +7,12 @@ out_topic_clusters: "test_pcl"
 
 safety_pixels: 20 #additional pixels both at left and right edges
 maxBufferSize: 200
-MY_CLUSTER: 9
-cutPixelsFromTop: 170  #this parameter depends on the height of the tracking object. The value of 150 is about 1.70m. For smaller objects you have to increase the value.
-saveTotalPixels: 85   #this parameter depends on the height of the tracking object. The value of 60 is about 1.70m. For smaller objects you have to increase the value.
+MY_CLUSTER: 6
+cutPixelsFromTop: 170  #This parameter depends on the height of the tracking object. The value of 170 is about 1.70m. For smaller objects you have to increase the value.
+saveTotalPixels: 85   #How many pixels do you want to save.
 rad_deviation_Camera_Laser: 0.040 # 0.085 rads= 4.87 degrees
-base: 2
+base: 2 # base^distance
+clusterToChoose: 2 #1:From variable MY_CLUSTER 2:The first cluster in motion
 
 
 
