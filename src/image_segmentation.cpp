@@ -190,10 +190,6 @@ void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg) {
       }
     }
 
-
-    //std::cout << "cluster_id = " << msg.cluster_id[j] << " min_point.y = " << min_point.y << " max_point.y = " << max_point.y << std::endl;
-    // if(msg.cluster_id[j] == MY_CLUSTER)
-    //  std::cout << "cluster_id = " << msg.cluster_id[j] << " min_point.x = " << min_point.x << " max_point.x = " << max_point.x << std::endl;
     angle_l = atan2(-min_point.y, min_point.x) + rad_deviation_Camera_Laser;
     angle_r = atan2(-max_point.y, max_point.x) + rad_deviation_Camera_Laser;
 
@@ -208,8 +204,8 @@ void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg) {
     x_r = max(0, min(2*center, (int)floor(max(angle_l, angle_r) * ratio + center + safety_pixels)));
 
     int width_pixels, width_offset, height_pixels,height_offset;
+    
     width_pixels = x_r - x_l;
-
 
     if (width_pixels < (1 + 2*safety_pixels)){
       out_msg.has_image.push_back(0);
@@ -218,11 +214,13 @@ void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg) {
       out_msg.has_image.push_back(1);
       width_offset = x_l;
 
-      double aver_dist = (min_point_x + max_point_x)/2;
 
+      //-----------------crop image horizontally -------------------------//
 
-      height_offset = cutPixelsFromTop + (int)ceil(pow(base, (int)ceil(aver_dist))); //
-      height_pixels = saveTotalPixels - (int)ceil(pow(base, (int)ceil(aver_dist))) ; //+ 3*(10 - (int)ceil(aver_dist));  // value 10 is the max distance that the laser
+      double aver_dist = (min_point_x + max_point_x)/2; 
+
+      height_offset = cutPixelsFromTop + pow(base, (int)ceil(aver_dist));
+      height_pixels = saveTotalPixels - pow(base, (int)ceil(aver_dist)); 
 
       if(height_offset<0) height_offset = 0;
       else if(height_offset>cv_ptr->image.rows) {
@@ -233,8 +231,7 @@ void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg) {
       if(height_pixels<=0) height_pixels = 0;
       else if(height_offset + height_pixels > cv_ptr->image.rows) height_pixels = cv_ptr->image.rows - height_offset;
 
-      std::cout << "height_pixels = " << height_pixels << " height_offset = " << height_offset << " image_rows = " << cv_ptr->image.rows << std::endl;
-
+      //----------------------------------------------------------------//
 
       cv::Rect myROIseg(width_offset, height_offset, width_pixels, height_pixels); 
       cv::Mat roiseg = cv::Mat(cv_ptr->image, myROIseg);
@@ -245,7 +242,6 @@ void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg) {
 
       if(msg.cluster_id.size() != 0){
         if(msg.cluster_id[j] == MY_CLUSTER ){
-          std::cout << "max_point_x = " << max_point_x << " min_point_x = " << min_point_x << " aver_dist = " << aver_dist << std::endl;
           tpub.publish(*imgptr);
         }
       }
@@ -258,7 +254,6 @@ void pcl_seg_Callback(const pointcloud_msgs::PointCloud2_Segments& msg) {
       else{
         std::cout << "empty!!!!!!!!!!!!!!!" << std::endl;
       }
-
     }
   }
 
